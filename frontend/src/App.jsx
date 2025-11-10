@@ -3,14 +3,14 @@ import { Link, Route, Routes, useNavigate } from 'react-router-dom'
 import AdminDashboard from './pages/AdminDashboard'
 import LoginPage from './pages/LoginPage'
 import ReviewerDashboard from './pages/ReviewerDashboard'
-import ProfessorDashboard from './pages/ProfessorDashboard'
-import HomeRedirect from './components/HomeRedirect'
+import HomePage from './pages/HomePage'
+import ProfessorDetail from './pages/ProfessorDetail'
 import { useAuth } from './hooks/useAuth'
 
 const roleLabels = {
   admin: 'Administrator',
   reviewer: 'Reviewer',
-  professor: 'Professor'
+  professor: 'Professor'  // 保留兼容性
 }
 
 function App() {
@@ -23,51 +23,47 @@ function App() {
     }
   }, [token, user, fetchProfile])
 
-  useEffect(() => {
-    if (!token) {
-      navigate('/login')
-    }
-  }, [token, navigate])
-
   return (
     <div className="app-container">
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h1>OpenRater</h1>
-          <p>公平、公正的教授评审平台</p>
-        </div>
-        {user && (
-          <div style={{ textAlign: 'right' }}>
-            <div>{user.name}</div>
-            <div className="badge">{roleLabels[user.role]}</div>
-            <button className="secondary" style={{ marginTop: '0.5rem' }} onClick={logout}>
-              退出
-            </button>
+      <header>
+        <div className="header-content">
+          <div className="header-left">
+            <h1><Link to="/" style={{ textDecoration: 'none', color: 'inherit' }}>OpenRater</Link></h1>
+            <p>Fair and Just Professor Review Platform</p>
           </div>
-        )}
+          <nav>
+            <Link to="/">Home</Link>
+            {token ? (
+              <>
+                {user?.role === 'admin' && <Link to="/admin">Admin Panel</Link>}
+                {(user?.role === 'admin' || user?.role === 'reviewer') && <Link to="/reviewer">Reviewer Panel</Link>}
+              </>
+            ) : (
+              <Link to="/login">Login</Link>
+            )}
+          </nav>
+          {user && (
+            <div className="header-right">
+              <div>{user.name}</div>
+              <div className="badge">{roleLabels[user.role]}</div>
+              <button className="secondary" style={{ marginTop: '0.5rem' }} onClick={logout}>
+                Logout
+              </button>
+            </div>
+          )}
+        </div>
       </header>
 
-      {token && (
-        <nav>
-          <Link to="/admin" hidden={user?.role !== 'admin'}>
-            管理后台
-          </Link>
-          <Link to="/reviewer" hidden={user?.role !== 'reviewer'}>
-            评审工作台
-          </Link>
-          <Link to="/professor" hidden={user?.role !== 'professor'}>
-            教授面板
-          </Link>
-        </nav>
-      )}
-
       <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/professors/:id" element={<ProfessorDetail />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/reviewer" element={<ReviewerDashboard />} />
-        <Route path="/professor" element={<ProfessorDashboard />} />
-        <Route path="/" element={<HomeRedirect />} />
-        <Route path="*" element={<HomeRedirect />} />
+        {token && (
+          <>
+            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/reviewer" element={<ReviewerDashboard />} />
+          </>
+        )}
       </Routes>
     </div>
   )
