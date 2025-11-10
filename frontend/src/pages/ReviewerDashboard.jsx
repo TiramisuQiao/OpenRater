@@ -5,14 +5,8 @@ import { useAuth } from '../hooks/useAuth'
 const initialReview = {
   professor_id: '',
   course_id: '',
-  summary: '',
-  strengths: '',
-  weaknesses: '',
-  fairness: 3,
-  clarity: 3,
-  engagement: 3,
-  workload: 3,
-  confidence: 3
+  rating: 5,
+  content: ''
 }
 
 function ReviewerDashboard() {
@@ -22,91 +16,116 @@ function ReviewerDashboard() {
   const [reviews, setReviews] = useState([])
   const [reviewForm, setReviewForm] = useState(initialReview)
   const [message, setMessage] = useState(null)
+  const [editingReview, setEditingReview] = useState(null)
+  const [editForm, setEditForm] = useState({ rating: 5, content: '' })
 
   const loadData = async () => {
     try {
-      const [profRes, courseRes, reviewRes] = await Promise.all([
+      const [professorsRes, courseRes, reviewRes] = await Promise.all([
         apiClient.get('/professors'),
         apiClient.get('/courses'),
         apiClient.get('/reviews')
       ])
-      setProfessors(profRes.data)
+      setProfessors(professorsRes.data)
       setCourses(courseRes.data)
       setReviews(reviewRes.data)
     } catch (error) {
-      setMessage({ type: 'error', text: error.response?.data?.detail ?? '加载失败' })
+      setMessage({ type: 'error', text: error.response?.data?.detail ?? 'Load failed' })
     }
   }
 
   useEffect(() => {
-    if (user?.role === 'reviewer') {
+    if (user?.role === 'reviewer' || user?.role === 'admin') {
       loadData()
     }
   }, [user])
 
   const professorCourses = useMemo(() => {
-    const prof = professors.find((p) => p.id === Number(reviewForm.professor_id))
-    return prof?.courses ?? []
+    const professor = professors.find((p) => p.id === Number(reviewForm.professor_id))
+    return professor?.courses ?? []
   }, [professors, reviewForm.professor_id])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     try {
       const payload = {
-        ...reviewForm,
         professor_id: Number(reviewForm.professor_id),
         course_id: Number(reviewForm.course_id),
-        fairness: Number(reviewForm.fairness),
-        clarity: Number(reviewForm.clarity),
-        engagement: Number(reviewForm.engagement),
-        workload: Number(reviewForm.workload),
-        confidence: Number(reviewForm.confidence)
+        rating: Number(reviewForm.rating),
+        content: reviewForm.content
       }
       await apiClient.post('/reviews', payload)
-      setMessage({ type: 'success', text: '评审提交成功' })
+      setMessage({ type: 'success', text: 'Review submitted successfully' })
       setReviewForm({ ...initialReview })
       loadData()
     } catch (error) {
-      setMessage({ type: 'error', text: error.response?.data?.detail ?? '提交失败' })
+      setMessage({ type: 'error', text: error.response?.data?.detail ?? 'Submission failed' })
     }
   }
 
-  if (user?.role !== 'reviewer') {
-    return <div className="card">无访问权限。</div>
+  const handleEdit = (review) => {
+    setEditingReview(review.id)
+    setEditForm({ rating: review.rating, content: review.content })
+  }
+
+  const handleUpdate = async (reviewId) => {
+    try {
+      await apiClient.put(`/reviews/${reviewId}`, editForm)
+      setMessage({ type: 'success', text: 'Review updated successfully' })
+      setEditingReview(null)
+      loadData()
+    } catch (error) {
+      setMessage({ type: 'error', text: error.response?.data?.detail ?? 'Update failed' })
+    }
+  }
+
+  const handleDelete = async (reviewId) => {
+    if (!window.confirm('Are you sure you want to delete this review?')) return
+    try {
+      await apiClient.delete(`/reviews/${reviewId}`)
+      setMessage({ type: 'success', text: 'Review deleted successfully' })
+      loadData()
+    } catch (error) {
+      setMessage({ type: 'error', text: error.response?.data?.detail ?? 'Deletion failed' })
+    }
+  }
+
+  if (user?.role !== 'reviewer' && user?.role !== 'admin') {
+    return <div className="card">Access denied.</div>
   }
 
   return (
     <div>
       <div className="card">
-        <h2>提交评审</h2>
+        <h2>Submit Review</h2>
         {message && <div className={`alert ${message.type}`}>{message.text}</div>}
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label>教授</label>
+            <label>Professor</label>
             <select
               value={reviewForm.professor_id}
               onChange={(e) => setReviewForm({ ...reviewForm, professor_id: e.target.value, course_id: '' })}
               required
             >
               <option value="" disabled>
-                请选择教授
+                Select Professor
               </option>
-              {professors.map((prof) => (
-                <option key={prof.id} value={prof.id}>
-                  {prof.name}（{prof.department}）
+              {professors.map((professor) => (
+                <option key={professor.id} value={professor.id}>
+                  {professor.name} ({professor.department})
                 </option>
               ))}
             </select>
           </div>
           <div className="form-group">
-            <label>课程</label>
+            <label>Course</label>
             <select
               value={reviewForm.course_id}
               onChange={(e) => setReviewForm({ ...reviewForm, course_id: e.target.value })}
               required
             >
               <option value="" disabled>
-                请选择课程
+                Select Course
               </option>
               {professorCourses.map((course) => (
                 <option key={course.id} value={course.id}>
@@ -116,74 +135,94 @@ function ReviewerDashboard() {
             </select>
           </div>
           <div className="form-group">
-            <label>评审总结</label>
-            <textarea
-              value={reviewForm.summary}
-              onChange={(e) => setReviewForm({ ...reviewForm, summary: e.target.value })}
+            <label>Rating (1-5):</label>
+            <select
+              value={reviewForm.rating}
+              onChange={(e) => setReviewForm({ ...reviewForm, rating: e.target.value })}
               required
-            />
+            >
+              <option value="5">5 - Excellent</option>
+              <option value="4">4 - Good</option>
+              <option value="3">3 - Average</option>
+              <option value="2">2 - Poor</option>
+              <option value="1">1 - Very Poor</option>
+            </select>
           </div>
           <div className="form-group">
-            <label>课程亮点</label>
-            <textarea value={reviewForm.strengths} onChange={(e) => setReviewForm({ ...reviewForm, strengths: e.target.value })} />
-          </div>
-          <div className="form-group">
-            <label>改进建议</label>
+            <label>Review Content:</label>
             <textarea
-              value={reviewForm.weaknesses}
-              onChange={(e) => setReviewForm({ ...reviewForm, weaknesses: e.target.value })}
+              value={reviewForm.content}
+              onChange={(e) => setReviewForm({ ...reviewForm, content: e.target.value })}
+              rows="5"
+              required
+              placeholder="Enter detailed review content..."
             />
-          </div>
-          <div className="rating-grid">
-            {['fairness', 'clarity', 'engagement', 'workload', 'confidence'].map((field) => (
-              <label key={field}>
-                {field === 'fairness'
-                  ? '公平性'
-                  : field === 'clarity'
-                  ? '授课清晰度'
-                  : field === 'engagement'
-                  ? '课堂互动'
-                  : field === 'workload'
-                  ? '作业负担'
-                  : '信心指数'}
-                <input
-                  type="number"
-                  min="1"
-                  max="5"
-                  value={reviewForm[field]}
-                  onChange={(e) => setReviewForm({ ...reviewForm, [field]: e.target.value })}
-                />
-              </label>
-            ))}
           </div>
           <button type="submit" className="primary" style={{ marginTop: '1rem' }}>
-            提交
+            Submit
           </button>
         </form>
       </div>
 
       <div className="card">
-        <h2>已提交评审</h2>
+        <h2>Submitted Reviews</h2>
         <table className="table">
           <thead>
             <tr>
-              <th>教授</th>
-              <th>课程</th>
-              <th>评分</th>
-              <th>信心指数</th>
-              <th>总结</th>
+              <th>Anonymous ID</th>
+              <th>Professor</th>
+              <th>Course</th>
+              <th>Rating</th>
+              <th>Version</th>
+              <th>Content</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {reviews.map((review) => (
               <tr key={review.id}>
-                <td>{professors.find((prof) => prof.id === review.professor_id)?.name ?? '未知'}</td>
-                <td>{courses.find((course) => course.id === review.course_id)?.name ?? '未知'}</td>
+                <td>{review.anonymous_id}</td>
+                <td>{professors.find((p) => p.id === review.professor_id)?.name ?? 'Unknown'}</td>
+                <td>{review.course?.code} - {review.course?.name}</td>
                 <td>
-                  公平 {review.fairness} / 清晰 {review.clarity} / 互动 {review.engagement} / 负担 {review.workload}
+                  {editingReview === review.id ? (
+                    <select value={editForm.rating} onChange={(e) => setEditForm({ ...editForm, rating: Number(e.target.value) })}>
+                      <option value="5">5</option>
+                      <option value="4">4</option>
+                      <option value="3">3</option>
+                      <option value="2">2</option>
+                      <option value="1">1</option>
+                    </select>
+                  ) : (
+                    `${review.rating}/5`
+                  )}
                 </td>
-                <td>{review.confidence}</td>
-                <td>{review.summary}</td>
+                <td>v{review.version}</td>
+                <td>
+                  {editingReview === review.id ? (
+                    <textarea
+                      value={editForm.content}
+                      onChange={(e) => setEditForm({ ...editForm, content: e.target.value })}
+                      rows="3"
+                      style={{ width: '100%' }}
+                    />
+                  ) : (
+                    review.content
+                  )}
+                </td>
+                <td>
+                  {editingReview === review.id ? (
+                    <div style={{ display: 'flex', gap: '0.5rem', flexDirection: 'column' }}>
+                      <button className="primary" style={{ padding: '0.3rem 0.6rem' }} onClick={() => handleUpdate(review.id)}>Save</button>
+                      <button className="secondary" style={{ padding: '0.3rem 0.6rem' }} onClick={() => setEditingReview(null)}>Cancel</button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', gap: '0.5rem', flexDirection: 'column' }}>
+                      <button className="secondary" style={{ padding: '0.3rem 0.8rem' }} onClick={() => handleEdit(review)}>Edit</button>
+                      <button className="secondary" style={{ padding: '0.3rem 0.8rem' }} onClick={() => handleDelete(review.id)}>Delete</button>
+                    </div>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

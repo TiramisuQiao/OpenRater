@@ -7,16 +7,16 @@ function AdminDashboard() {
   const [courses, setCourses] = useState([])
   const [professors, setProfessors] = useState([])
   const [form, setForm] = useState({ name: '', code: '', term: '' })
-  const [profForm, setProfForm] = useState({ name: '', department: '', user_id: '', course_ids: [] })
+  const [professorForm, setProfessorForm] = useState({ name: '', department: '', user_id: '', course_ids: [] })
   const [message, setMessage] = useState(null)
 
   const loadData = async () => {
     try {
-      const [coursesRes, profRes] = await Promise.all([apiClient.get('/courses'), apiClient.get('/professors')])
+      const [coursesRes, professorsRes] = await Promise.all([apiClient.get('/courses'), apiClient.get('/professors')])
       setCourses(coursesRes.data)
-      setProfessors(profRes.data)
+      setProfessors(professorsRes.data)
     } catch (error) {
-      setMessage({ type: 'error', text: error.response?.data?.detail ?? '加载失败' })
+      setMessage({ type: 'error', text: error.response?.data?.detail ?? 'Load failed' })
     }
   }
 
@@ -30,11 +30,11 @@ function AdminDashboard() {
     e.preventDefault()
     try {
       await apiClient.post('/courses', form)
-      setMessage({ type: 'success', text: '课程创建成功' })
+      setMessage({ type: 'success', text: 'Course created successfully' })
       setForm({ name: '', code: '', term: '' })
       loadData()
     } catch (error) {
-      setMessage({ type: 'error', text: error.response?.data?.detail ?? '创建失败' })
+      setMessage({ type: 'error', text: error.response?.data?.detail ?? 'Creation failed' })
     }
   }
 
@@ -42,21 +42,21 @@ function AdminDashboard() {
     e.preventDefault()
     try {
       const payload = {
-        ...profForm,
-        user_id: profForm.user_id ? Number(profForm.user_id) : undefined,
-        course_ids: profForm.course_ids.map(Number)
+        ...professorForm,
+        user_id: professorForm.user_id ? Number(professorForm.user_id) : undefined,
+        course_ids: professorForm.course_ids.map(Number)
       }
       await apiClient.post('/professors', payload)
-      setMessage({ type: 'success', text: '教授已添加' })
-      setProfForm({ name: '', department: '', user_id: '', course_ids: [] })
+      setMessage({ type: 'success', text: 'Professor added' })
+      setProfessorForm({ name: '', department: '', user_id: '', course_ids: [] })
       loadData()
     } catch (error) {
-      setMessage({ type: 'error', text: error.response?.data?.detail ?? '操作失败' })
+      setMessage({ type: 'error', text: error.response?.data?.detail ?? 'Operation failed' })
     }
   }
 
   const toggleCourseSelection = (courseId) => {
-    setProfForm((prev) => {
+    setProfessorForm((prev) => {
       const hasCourse = prev.course_ids.includes(courseId)
       return {
         ...prev,
@@ -65,67 +65,80 @@ function AdminDashboard() {
     })
   }
 
+  const handleDeleteProfessor = async (professorId, professorName) => {
+    if (!window.confirm(`Are you sure you want to delete professor ${professorName}? This will also delete all their review data.`)) {
+      return
+    }
+    try {
+      await apiClient.delete(`/professors/${professorId}`)
+      setMessage({ type: 'success', text: 'Professor deleted' })
+      loadData()
+    } catch (error) {
+      setMessage({ type: 'error', text: error.response?.data?.detail ?? 'Deletion failed' })
+    }
+  }
+
   if (user?.role !== 'admin') {
-    return <div className="card">无访问权限。</div>
+    return <div className="card">Access denied.</div>
   }
 
   return (
     <div>
       <div className="card">
-        <h2>创建课程</h2>
+        <h2>Create Course</h2>
         {message && (
           <div className={`alert ${message.type}`}>{message.text}</div>
         )}
         <form className="flex wrap" onSubmit={handleCourseSubmit}>
           <div className="form-group" style={{ flex: '1 1 200px' }}>
-            <label>课程名称</label>
+            <label>Course Name</label>
             <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
           </div>
           <div className="form-group" style={{ flex: '1 1 200px' }}>
-            <label>课程代码</label>
+            <label>Course Code</label>
             <input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} required />
           </div>
           <div className="form-group" style={{ flex: '1 1 200px' }}>
-            <label>开课学期</label>
+            <label>Term</label>
             <input value={form.term} onChange={(e) => setForm({ ...form, term: e.target.value })} required />
           </div>
           <button type="submit" className="primary" style={{ alignSelf: 'flex-end' }}>
-            创建
+            Create
           </button>
         </form>
       </div>
 
       <div className="card">
-        <h2>添加教授</h2>
+        <h2>Add Professor</h2>
         <form onSubmit={handleProfessorSubmit}>
           <div className="form-group">
-            <label>姓名</label>
-            <input value={profForm.name} onChange={(e) => setProfForm({ ...profForm, name: e.target.value })} required />
+            <label>Name</label>
+            <input value={professorForm.name} onChange={(e) => setProfessorForm({ ...professorForm, name: e.target.value })} required />
           </div>
           <div className="form-group">
-            <label>院系</label>
+            <label>Department</label>
             <input
-              value={profForm.department}
-              onChange={(e) => setProfForm({ ...profForm, department: e.target.value })}
+              value={professorForm.department}
+              onChange={(e) => setProfessorForm({ ...professorForm, department: e.target.value })}
               required
             />
           </div>
           <div className="form-group">
-            <label>关联教授账号（可选，填写用户ID）</label>
+            <label>Link Professor Account (Optional, enter user ID)</label>
             <input
-              value={profForm.user_id}
-              onChange={(e) => setProfForm({ ...profForm, user_id: e.target.value })}
-              placeholder="例如：5"
+              value={professorForm.user_id}
+              onChange={(e) => setProfessorForm({ ...professorForm, user_id: e.target.value })}
+              placeholder="e.g.: 5"
             />
           </div>
           <div className="form-group">
-            <label>授课课程</label>
+            <label>Teaching Courses</label>
             <div className="flex wrap">
               {courses.map((course) => (
                 <button
                   type="button"
                   key={course.id}
-                  className={profForm.course_ids.includes(course.id) ? 'primary' : 'secondary'}
+                  className={professorForm.course_ids.includes(course.id) ? 'primary' : 'secondary'}
                   onClick={() => toggleCourseSelection(course.id)}
                 >
                   {course.name} ({course.code})
@@ -134,34 +147,44 @@ function AdminDashboard() {
             </div>
           </div>
           <button type="submit" className="primary">
-            保存
+            Save
           </button>
         </form>
       </div>
 
       <div className="card">
-        <h2>教授列表</h2>
+        <h2>Professor List</h2>
         <table className="table">
           <thead>
             <tr>
-              <th>姓名</th>
-              <th>院系</th>
-              <th>关联账号</th>
-              <th>课程</th>
+              <th>Name</th>
+              <th>Department</th>
+              <th>Linked Account</th>
+              <th>Courses</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {professors.map((prof) => (
-              <tr key={prof.id}>
-                <td>{prof.name}</td>
-                <td>{prof.department}</td>
-                <td>{prof.user_id ?? '未关联'}</td>
+            {professors.map((professor) => (
+              <tr key={professor.id}>
+                <td>{professor.name}</td>
+                <td>{professor.department}</td>
+                <td>{professor.user_id ?? 'Not linked'}</td>
                 <td>
-                  {prof.courses.map((course) => (
+                  {professor.courses.map((course) => (
                     <span key={course.id} className="badge" style={{ marginRight: '0.5rem' }}>
                       {course.code}
                     </span>
                   ))}
+                </td>
+                <td>
+                  <button
+                    className="secondary"
+                    onClick={() => handleDeleteProfessor(professor.id, professor.name)}
+                    style={{ padding: '0.3rem 0.8rem' }}
+                  >
+                    Delete
+                  </button>
                 </td>
               </tr>
             ))}
